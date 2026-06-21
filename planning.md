@@ -1,100 +1,109 @@
-# TakeMeter Project Plan
+# TakeMeter Project Plan: Hacker News Comment Classifier
 
 ## 1. Community
 
-I will study discourse in **r/iRacing**, the Reddit community for the iRacing racing simulator. This community is a good fit for TakeMeter because discussion quality varies widely: members ask practical setup questions, analyze racing incidents, give racecraft advice, celebrate wins, and sometimes post emotional rants after crashes. The distinction matters because a useful community tool should recognize the difference between advice that helps drivers improve and posts that are mainly venting.
+I will study discourse in **Hacker News**, a public online community focused on software, startups, AI, engineering, security, product decisions, and technology culture. Hacker News is a good fit for TakeMeter because discussion quality and function vary widely: some comments provide detailed technical or business reasoning, some give practical advice, and some mainly express frustration, humor, agreement, or surprise.
+
+The original project idea used r/iRacing. During implementation, Reddit collection became too slow and unreliable for the available timeline, so I pivoted to Hacker News. This planning document reflects the final implemented project.
 
 ## 2. Label Taxonomy
 
-I will classify each post/comment into exactly one of three labels.
+I will classify each comment into exactly one of three labels.
 
-### `racecraft_analysis`
-A post that explains driving behavior, incident responsibility, race strategy, or technique using specific reasoning about what happened on track.
+### `technical_analysis`
 
-Clear examples:
-- "You turned in as if the inside car wasn't there. Once he had overlap before turn-in, you needed to leave a lane."
-- "Your braking point is okay, but you release the brake too quickly, which unloads the front tires and causes understeer."
-
-### `practical_help`
-A post that asks for or gives concrete help about equipment, settings, cars, tracks, rules, licenses, software, or troubleshooting.
+A comment that explains a technical, business, economic, or social claim using reasoning, tradeoffs, evidence, comparison, or causal explanation.
 
 Clear examples:
-- "Is the Porsche Cup worth buying for C class if I already own a GT4?"
-- "Lower your force feedback clipping first; if the wheel still oscillates on straights, add a small amount of damping."
+- "The main issue is not the language feature itself but the deployment model, because latency and operational cost scale differently once traffic increases."
+- "ClickHouse and Postgres solve different workloads: OLAP favors columnar scans, while OLTP needs row-level transactional consistency."
+
+### `practical_advice`
+
+A comment that gives or asks for actionable guidance, such as what tool to use, how to debug something, how to approach a workflow/career decision, or how to implement a solution.
+
+Clear examples:
+- "Try SQLite first and only move to Postgres when you need concurrent writes or managed backups."
+- "If you are replacing Elastic, test whether ClickHouse supports your search workload before migrating logs."
 
 ### `emotional_reaction`
-A post that mainly expresses frustration, excitement, humor, blame, celebration, or venting without enough specific reasoning to be useful as advice or analysis.
+
+A comment whose main purpose is to express approval, frustration, surprise, humor, disappointment, sarcasm, or another immediate reaction without much supporting reasoning.
 
 Clear examples:
-- "I got punted again in rookies. This game is impossible."
-- "Finally won my first race! I am never financially recovering from this subscription."
+- "This is ridiculous. I cannot believe people still defend this."
+- "The screenshots are awful; just draw the diagram by hand."
 
 ## 3. Hard Edge Cases and Decision Rules
 
-### Edge case 1: Complaint with some evidence
-Example: "The guy divebombed from a mile back and ruined my race. He was never making the corner."
+### Edge case 1: Advice with technical reasoning
 
-Possible labels: `racecraft_analysis` or `emotional_reaction`.
+Example: "ClickHouse is great for analytics, but I would not replace Postgres with it for OLTP because transactions and row updates are not the same workload."
 
-Decision rule: If the post explains the incident with specific observable details, such as overlap, braking point, corner phase, racing line, or replay evidence, label it `racecraft_analysis`. If the post mainly blames another driver with only vague evidence, label it `emotional_reaction`.
+Possible labels: `technical_analysis` or `practical_advice`.
 
-### Edge case 2: Question that includes analysis
-Example: "I keep losing the rear when trail braking into T1 at Spa. Am I braking too late or releasing too fast?"
+Decision rule: If the main purpose is explaining a concept or tradeoff, label it `technical_analysis`. If the main purpose is recommending what someone should do or avoid, label it `practical_advice`.
 
-Possible labels: `practical_help` or `racecraft_analysis`.
+### Edge case 2: Emotional comment with technical vocabulary
 
-Decision rule: If the post's main purpose is asking for a solution, label it `practical_help`. If the post's main purpose is explaining why something happened or judging responsibility, label it `racecraft_analysis`.
+Example: "This JVM memory-layout explanation is nonsense. The whole section sounds AI-written."
 
-### Edge case 3: Gear/racing recommendation with opinion
-Example: "GT3 is way better than Porsche Cup for learning because the ABS lets you focus on racecraft first."
+Possible labels: `technical_analysis` or `emotional_reaction`.
 
-Possible labels: `practical_help` or `racecraft_analysis`.
+Decision rule: If the comment mainly reacts or complains without developing reasoning, label it `emotional_reaction`, even if it contains technical words. If it explains why the claim is wrong using specific evidence, label it `technical_analysis`.
 
-Decision rule: If the post gives a recommendation about what to buy/use/do, label it `practical_help`, even if it includes a short reason. Only label `racecraft_analysis` when the reasoning is mainly about driving behavior or on-track decisions.
+### Edge case 3: Short question about a tool
+
+Example: "Can ClickHouse search? If not, why replace Elastic with it?"
+
+Possible labels: `practical_advice` or `emotional_reaction`.
+
+Decision rule: If the question is about tool suitability, setup, implementation, migration, or debugging, label it `practical_advice`. If it is mainly rhetorical sarcasm or venting, label it `emotional_reaction`.
 
 ## 4. Data Collection Plan
 
-I will collect at least 200 public posts or comments from r/iRacing. I will prioritize text-heavy discussion, question/help, and incident/racecraft threads rather than image-only memes because the classifier uses text.
+I will collect at least 200 public Hacker News comments using the public Hacker News API. I will focus on text comments rather than story titles alone because the classifier is meant to evaluate discourse in comments.
 
 Target distribution:
-- `racecraft_analysis`: about 70 examples
-- `practical_help`: about 70 examples
-- `emotional_reaction`: about 70 examples
+- `technical_analysis`: about 100-150 examples
+- `practical_advice`: about 60-100 examples
+- `emotional_reaction`: about 50-80 examples
 
-If one label is underrepresented after the first 200 examples, I will search within the subreddit for terms likely to surface that label:
-- `racecraft_analysis`: "fault", "incident", "braking", "line", "overlap", "replay"
-- `practical_help`: "setup", "buy", "wheel", "force feedback", "license", "track", "car"
-- `emotional_reaction`: "rant", "frustrated", "finally won", "rookies", "crashed"
-
-I will save all examples in one CSV file named `takemeter_dataset.csv` with columns:
+The final dataset will be saved in one CSV file named `takemeter_dataset.csv` with columns:
 - `text`
 - `label`
 - `notes`
+- `source_type`
+- `source_url`
+- `parent_title`
 
 The notebook will split this single file into train/validation/test using a 70/15/15 split.
 
 ## 5. Evaluation Metrics
 
-I will report overall accuracy for both the fine-tuned DistilBERT model and the zero-shot Groq baseline. Accuracy is useful because the label distribution should be reasonably balanced, but it is not enough by itself.
+I will report overall accuracy for both the fine-tuned DistilBERT model and the zero-shot Groq baseline. Accuracy is useful because no single class should dominate more than 70% of the dataset.
 
-I will also report per-class precision, recall, and F1 because the most important question is whether the model can learn all three discourse types, not just the most common one. I will use the confusion matrix to identify which label boundary is hardest, especially whether `racecraft_analysis` is confused with `emotional_reaction`.
+I will also examine per-class precision, recall, F1, and the confusion matrix because the most important question is whether the model can learn all three discourse functions. I expect the hardest boundary to be `technical_analysis` vs. `practical_advice`, because advice in Hacker News often contains technical explanation.
 
 ## 6. Definition of Success
 
-A useful classifier should beat the zero-shot baseline and achieve at least **0.70 macro F1** on the test set. I would consider it good enough for a prototype if:
+A useful classifier should beat the zero-shot baseline and achieve at least about 70% accuracy or strong macro-F1. I would consider it good enough for a prototype if:
 - overall accuracy is at least 70%;
-- every class has F1 above 0.60;
-- the fine-tuned model improves over the Groq baseline by at least 5 percentage points, or performs similarly while being cheaper and local.
+- every class has non-trivial F1;
+- the fine-tuned model improves over the Groq baseline or provides a clear cost/locality advantage.
 
-For real deployment in a community tool, I would want a larger dataset, stronger inter-annotator agreement, and more testing on new posts outside the original collection period.
+If the fine-tuned model performs worse than the baseline, I will treat that as an important result and analyze why.
 
 ## 7. AI Tool Plan
 
 ### Label stress-testing
-I will ask an AI tool to generate boundary cases between `racecraft_analysis`, `practical_help`, and `emotional_reaction`. If I cannot label those examples consistently using the decision rules above, I will revise the definitions before annotating the full dataset.
+
+I will ask an AI tool to generate boundary cases between `technical_analysis`, `practical_advice`, and `emotional_reaction`. If I cannot classify the examples consistently, I will revise the decision rules before finalizing the dataset.
 
 ### Annotation assistance
-I may use an LLM to pre-label examples in batches, but I will manually review every label. I will track AI-assisted labels in the `notes` column using notes such as `AI prelabel reviewed` so I can disclose the workflow in the README.
+
+I may use an LLM to pre-label examples, but I will review labels and focus especially on borderline cases. I will disclose this workflow in the README.
 
 ### Failure analysis
-After fine-tuning, I will paste the wrong predictions into an AI tool and ask it to identify recurring error patterns. I will verify those patterns myself by rereading the examples before including them in the README.
+
+After fine-tuning, I will use an AI tool to summarize wrong-prediction patterns, then verify those patterns by rereading the examples and comparing them to the confusion matrix.
